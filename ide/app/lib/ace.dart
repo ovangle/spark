@@ -31,9 +31,9 @@ class AceEditor extends Editor {
   AceEditor(this.aceContainer);
 
   void resize() => aceContainer.resize();
-
   void focus() => aceContainer.focus();
 }
+
 
 /**
  * A wrapper around an Ace editor instance.
