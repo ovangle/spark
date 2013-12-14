@@ -14,6 +14,7 @@ import 'dart:html' as html;
 import 'ace.dart' as ace;
 import 'event_bus.dart';
 import 'preferences.dart';
+import 'filetypes.dart';
 import 'workspace.dart';
 
 /**
@@ -37,6 +38,7 @@ abstract class EditorProvider {
 abstract class Editor {
   html.Element get element;
   File get file;
+  FileTypePreferences get preferences;
   void resize();
   void focus();
 }
@@ -52,6 +54,7 @@ class EditorManager implements EditorProvider {
   final EventBus _eventBus;
 
   final int PREFS_EDITORSTATES_VERSION = 1;
+  final FileTypeRegistry _ftRegistry = new FileTypeRegistry();
 
   // List of files opened in a tab.
   final List<_EditorState> _openedEditorStates = [];
@@ -248,11 +251,14 @@ class EditorManager implements EditorProvider {
 
   // EditorProvider
   Editor createEditorForFile(File file) {
-    ace.AceEditor editor =
-        _editorMap[file] != null ? _editorMap[file] : new ace.AceEditor(_aceContainer);
+    ace.AceEditor editor = new ace.AceEditor(_aceContainer);
     _editorMap[file] = editor;
     openOrSelect(file);
     editor.file = file;
+    _ftRegistry.restorePreferences(_prefs, _ftRegistry.fileTypeOf(file))
+        .then((prefs) {
+          editor.preferences = prefs;
+        });
     return editor;
   }
 
@@ -261,6 +267,10 @@ class EditorManager implements EditorProvider {
     _switchState(state);
     _editorMap[file] = editor;
     (editor as ace.AceEditor).file = file;
+    _ftRegistry.restorePreferences(_prefs, _ftRegistry.fileTypeOf(file))
+        .then((prefs) {
+          (editor as ace.AceEditor).preferences = prefs;
+        });
   }
 }
 
@@ -322,6 +332,11 @@ class _EditorState {
         cursorPosition = manager._aceContainer.cursorPosition;
       }
     }
+  }
+  
+  void updatePreferences(FileTypePreferences prefs) {
+    session.useSoftTabs = prefs.useSoftTabs;
+    session.tabSize = prefs.tabSize;
   }
 
   /**
