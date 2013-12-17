@@ -10,14 +10,11 @@ library spark.ace;
 import 'dart:async';
 import 'dart:html' as html;
 import 'dart:js' as js;
-import 'dart:math' as math;
 
 import 'package:ace/ace.dart' as ace;
 
 import 'workspace.dart' as workspace;
 import 'editors.dart';
-import 'preferences.dart';
-import 'utils.dart' as utils;
 
 export 'package:ace/ace.dart' show EditSession;
 
@@ -31,13 +28,9 @@ class AceEditor extends Editor {
   AceEditor(this.aceContainer);
 
   void resize() => aceContainer.resize();
-  void focus() => aceContainer.focus();
-  
-  void apply(EditorPreferences prefs) {
-    aceContainer.setPreferencesForSession(prefs);
-  }
-}
 
+  void focus() => aceContainer.focus();
+}
 
 /**
  * A wrapper around an Ace editor instance.
@@ -93,12 +86,26 @@ class AceContainer {
 
   void resize() => _aceEditor.resize(false);
 
-  ace.EditSession createEditSession(String text, String fileName) {
+  ace.EditSession createEditSession(String text, String fileName, Map<String,dynamic> prefs) {
     ace.EditSession session = ace.createEditSession(
         text, new ace.Mode.forFile(fileName));
+    _applyCustomSession(session, fileName, prefs);
+    return session;
+  }
+
+  void _applyCustomSession(ace.EditSession session, String fileName, Map<String,dynamic> prefs) {
+    session.tabSize = prefs['tabSize'];
+    session.useSoftTabs = prefs['useSoftTabs'];
     // Disable Ace's analysis (this shows up in JavaScript files).
     session.useWorker = false;
-    return session;
+  }
+
+  /**
+   * Apply the preferences to the currently loaded session.
+   * The current file is assumed to be the same type as the preference type.
+   */
+  void applySessionPreferences(String fileName, Map<String,dynamic> prefs) {
+    _applyCustomSession(currentSession, fileName, prefs);
   }
 
   html.Point get cursorPosition {
@@ -123,86 +130,5 @@ class AceContainer {
         _aceEditor.readOnly = false;
       }
     }
-  }
-}
-
-class ThemeManager {
-  AceContainer aceContainer;
-  PreferenceStore prefs;
-  html.Element _label;
-
-  ThemeManager(this.aceContainer, this.prefs, this._label) {
-    prefs.getValue('aceTheme').then((String value) {
-      if (value != null) {
-        aceContainer.theme = value;
-        _updateName(value);
-      } else {
-        _updateName(aceContainer.theme);
-      }
-    });
-  }
-
-  void inc(html.Event e) {
-   e.stopPropagation();
-    _changeTheme(1);
-  }
-
-  void dec(html.Event e) {
-    e.stopPropagation();
-    _changeTheme(-1);
-  }
-
-  void _changeTheme(int direction) {
-    int index = AceContainer.THEMES.indexOf(aceContainer.theme);
-    index = (index + direction) % AceContainer.THEMES.length;
-    String newTheme = AceContainer.THEMES[index];
-    prefs.setValue('aceTheme', newTheme);
-    _updateName(newTheme);
-    aceContainer.theme = newTheme;
-  }
-
-  void _updateName(String name) {
-    _label.text = utils.capitalize(name.replaceAll('_', ' '));
-  }
-}
-
-class KeyBindingManager {
-  AceContainer aceContainer;
-  PreferenceStore prefs;
-  html.Element _label;
-
-  KeyBindingManager(this.aceContainer, this.prefs, this._label) {
-    prefs.getValue('keyBinding').then((String value) {
-      if (value != null) {
-        aceContainer.setKeyBinding(value);
-      }
-      _updateName(value);
-    });
-  }
-
-  void inc(html.Event e) {
-    e.stopPropagation();
-    _changeBinding(1);
-  }
-
-  void dec(html.Event e) {
-    e.stopPropagation();
-    _changeBinding(-1);
-  }
-
-  void _changeBinding(int direction) {
-    aceContainer.getKeyBinding().then((String name) {
-      int index = math.max(AceContainer.KEY_BINDINGS.indexOf(name), 0);
-      index = (index + direction) % AceContainer.KEY_BINDINGS.length;
-      String newBinding = AceContainer.KEY_BINDINGS[index];
-      prefs.setValue('keyBinding', newBinding);
-      _updateName(newBinding);
-      aceContainer.setKeyBinding(newBinding);
-    });
-  }
-
-  void _updateName(String name) {
-    _label.text =
-        'Keys: ' + (name == null ? 'default' : utils.capitalize(name));
   }
 }

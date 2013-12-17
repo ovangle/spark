@@ -12,10 +12,12 @@ import 'dart:async';
 import 'dart:html' as html;
 
 import 'ace.dart' as ace;
-import 'event_bus.dart';
 import 'preferences.dart';
-import 'filetypes.dart' as ftypes;
+<<<<<<< HEAD
+import 'filetypes.dart';
+=======
 import 'utils.dart';
+>>>>>>> Removed filetypes.dart
 import 'workspace.dart';
 
 /**
@@ -40,17 +42,16 @@ abstract class Editor {
   html.Element get element;
   File get file;
   void resize();
-  void focus(); 
-  
-  void apply(EditorPreferences preferences);
+  void focus();
 }
 
-class EditorPreferences extends ftypes.FileTypePreferences {
+<<<<<<< HEAD
+class EditorPreferences extends FileTypePreferences {
   int tabSize;
   bool useSoftTabs;
-  
+
   EditorPreferences(String fileType) : super(fileType);
-  
+
   static _fromMap(String fileType, [Map map = null]) {
     var prefs = new EditorPreferences(fileType);
     if (map != null) {
@@ -59,11 +60,13 @@ class EditorPreferences extends ftypes.FileTypePreferences {
     }
     return prefs;
   }
-  
+
   Map toMap() => { 'tabSize' : tabSize,
                    'useSoftTabs' : useSoftTabs };
 }
 
+=======
+>>>>>>> Removed filetypes.dart
 
 /**
  * Manage a list of open editors.
@@ -71,9 +74,7 @@ class EditorPreferences extends ftypes.FileTypePreferences {
 class EditorManager implements EditorProvider {
   final Workspace _workspace;
   final ace.AceContainer _aceContainer;
-  final PreferenceStore _prefs;
-  final EventBus _eventBus;
-
+  final PreferenceStore _prefStore;
   final int PREFS_EDITORSTATES_VERSION = 1;
 
   // List of files opened in a tab.
@@ -89,24 +90,33 @@ class EditorManager implements EditorProvider {
   final StreamController<File> _selectedController =
       new StreamController.broadcast();
 
-<<<<<<< HEAD
-  // TODO: Investigate dependency injection OR overridable singletons. We're
-  // passing around too many ctor vars.
-  EditorManager(this._workspace, this._aceContainer, this._prefs, this._eventBus) {
-=======
   EditorManager(this._workspace, this._aceContainer, this._prefStore) {
-    ftypes.onFileTypePreferenceChange(_prefStore, EditorPreferences._fromMap)
+<<<<<<< HEAD
+    fileTypeRegistry
+        .onFileTypePreferenceChange(_prefStore, EditorPreferences._fromMap)
         .listen((prefs) {
            if (currentFile != null
-               && canonicFileExt(currentFile.name) == prefs.fileType) {
+               && fileTypeRegistry.fileTypeOf(currentFile) == prefs.fileType) {
             _aceContainer.applySessionPreferences(currentFile.name, prefs);
           }
         });
->>>>>>> Removed FileTypeRegistry singleton
+=======
+>>>>>>> Removed filetypes.dart
     _workspace.whenAvailable().then((_) {
       _restoreState().then((_) {
         _loadedCompleter.complete(true);
       });
+    });
+    _prefStore.onPreferenceChange.listen((data) {
+      if (data.key.startsWith('fileTypePrefs')) {
+        var fileType = data.key.substring(data.key.indexOf('/') + 1);
+        var currFile = _currentState.file.name;
+        if (fileType == canonicFileExt(currFile)) {
+          _aceContainer.applySessionPreferences(
+              currFile,
+              data.valueAsJson(ifAbsent: () => {'useSoftTabs' : true, 'tabSize' : 2}));
+        }
+      }
     });
   }
 
@@ -195,12 +205,12 @@ class EditorManager implements EditorProvider {
     });
     savedMap['filesState'] = filesState;
     savedMap['version'] = PREFS_EDITORSTATES_VERSION;
-    _prefs.setJsonValue('editorStates', savedMap);
+    _prefStore.setJsonValue('editorStates', savedMap);
   }
 
   // Restore state of the editor manager.
   Future _restoreState() {
-    return _prefs.getJsonValue('editorStates', ifAbsent: () => {}).then((Map savedData) {
+    return _prefStore.getJsonValue('editorStates', ifAbsent: () => {}).then((Map savedData) {
       int version = savedData['version'];
       if (version == PREFS_EDITORSTATES_VERSION) {
         List<String> openedTabs = savedData['openedTabs'];
@@ -260,8 +270,6 @@ class EditorManager implements EditorProvider {
   Timer _timer;
 
   void _startSaveTimer() {
-    _eventBus.addEvent('fileModified', currentFile);
-
     if (_timer != null) _timer.cancel();
 
     _timer = new Timer(new Duration(seconds: 2), () => _saveAll());
@@ -276,8 +284,6 @@ class EditorManager implements EditorProvider {
     // TODO: start a workspace change event; this might modify multiple files
     _openedEditorStates.forEach((e) => e.save());
     // TODO: end the workspace change event
-
-    _eventBus.addEvent('filesSaved', null);
   }
 
   // EditorProvider
@@ -286,11 +292,6 @@ class EditorManager implements EditorProvider {
     _editorMap[file] = editor;
     openOrSelect(file);
     editor.file = file;
-    var fileType = fileTypeRegistry.fileTypeOf(file);
-    fileTypeRegistry.restorePreferences(_prefs, EditorPreferences._fromMap, fileType)
-        .then((prefs) {
-          editor.preferences = prefs;
-        });
     return editor;
   }
 
@@ -299,11 +300,6 @@ class EditorManager implements EditorProvider {
     _switchState(state);
     _editorMap[file] = editor;
     (editor as ace.AceEditor).file = file;
-    var fileType = fileTypeRegistry.fileTypeOf(file);
-    fileTypeRegistry.restorePreferences(_prefs, EditorPreferences._fromMap, fileType)
-        .then((prefs) {
-          (editor as ace.AceEditor).preferences = prefs;
-        });
   }
 }
 
@@ -339,10 +335,9 @@ class _EditorState {
   set dirty(bool value) {
     if (_dirty != value) {
       _dirty = value;
-    }
-
-    if (value) {
-      manager._startSaveTimer();
+      if (_dirty) {
+        manager._startSaveTimer();
+      }
     }
   }
 
@@ -384,24 +379,19 @@ class _EditorState {
     if (hasSession) {
       return new Future.value(this);
     } else {
-<<<<<<< HEAD
-      return file.getContents().then((text) {
-        session = manager._aceContainer.createEditSession(text, file.name);
-        session.scrollTop = scrollTop;
-        session.onChange.listen((delta) => dirty = true);
-        return this;
-=======
       Completer<_EditorState> completer = new Completer<_EditorState>();
       file.getContents().then((text) {
-        ftypes.restorePreferences(manager._prefStore, EditorPreferences._fromMap, file)
+        manager._prefStore.getJsonValue('fileTypePrefs/${canonicFileExt(file.name)}',
+                                        ifAbsent: () => {'useSoftTabs' : true, 'tabSize' : 2})
             .then((prefs) {
               session = manager._aceContainer.createEditSession(text, file.name, prefs);
               session.scrollTop = scrollTop;
               session.onChange.listen((delta) => dirty = true);
               completer.complete(this);
             });
->>>>>>> Removed FileTypeRegistry singleton
       });
+
+      return completer.future;
     }
   }
 }

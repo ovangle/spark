@@ -13,7 +13,7 @@ import 'dart:html' as html;
 
 import 'ace.dart' as ace;
 import 'preferences.dart';
-import 'filetypes.dart';
+import 'utils.dart';
 import 'workspace.dart';
 
 /**
@@ -41,25 +41,6 @@ abstract class Editor {
   void focus();
 }
 
-class EditorPreferences extends FileTypePreferences {
-  int tabSize;
-  bool useSoftTabs;
-
-  EditorPreferences(String fileType) : super(fileType);
-
-  static _fromMap(String fileType, [Map map = null]) {
-    var prefs = new EditorPreferences(fileType);
-    if (map != null) {
-      prefs.tabSize = map['tabSize'];
-      prefs.useSoftTabs = map['useSoftTabs'];
-    }
-    return prefs;
-  }
-
-  Map toMap() => { 'tabSize' : tabSize,
-                   'useSoftTabs' : useSoftTabs };
-}
-
 
 /**
  * Manage a list of open editors.
@@ -84,18 +65,21 @@ class EditorManager implements EditorProvider {
       new StreamController.broadcast();
 
   EditorManager(this._workspace, this._aceContainer, this._prefStore) {
-    fileTypeRegistry
-        .onFileTypePreferenceChange(_prefStore, EditorPreferences._fromMap)
-        .listen((prefs) {
-           if (currentFile != null
-               && fileTypeRegistry.fileTypeOf(currentFile) == prefs.fileType) {
-            _aceContainer.applySessionPreferences(currentFile.name, prefs);
-          }
-        });
     _workspace.whenAvailable().then((_) {
       _restoreState().then((_) {
         _loadedCompleter.complete(true);
       });
+    });
+    _prefStore.onPreferenceChange.listen((data) {
+      if (data.key.startsWith('fileTypePrefs')) {
+        var fileType = data.key.substring(data.key.indexOf('/') + 1);
+        var currFile = _currentState.file.name;
+        if (fileType == canonicFileExt(currFile)) {
+          _aceContainer.applySessionPreferences(
+              currFile,
+              data.valueAsJson(ifAbsent: () => {'useSoftTabs' : true, 'tabSize' : 2}));
+        }
+      }
     });
   }
 
@@ -360,7 +344,8 @@ class _EditorState {
     } else {
       Completer<_EditorState> completer = new Completer<_EditorState>();
       file.getContents().then((text) {
-        ftypes.restorePreferences(manager._prefStore, EditorPreferences._fromMap, file)
+        manager._prefStore.getJsonValue('fileTypePrefs/${canonicFileExt(file.name)}',
+                                        ifAbsent: () => {'useSoftTabs' : true, 'tabSize' : 2})
             .then((prefs) {
               session = manager._aceContainer.createEditSession(text, file.name, prefs);
               session.scrollTop = scrollTop;
