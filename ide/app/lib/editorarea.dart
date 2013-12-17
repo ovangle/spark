@@ -120,6 +120,7 @@ class EditorArea extends TabView {
     if (selectedTab != null) {
       (selectedTab as EditorTab).resize();
     }
+    super.resize();
   }
 
   /// Switches to a file. If the file is not opened and [forceOpen] is `true`,

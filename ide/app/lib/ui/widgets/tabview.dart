@@ -54,7 +54,7 @@ class Tab {
   String get label => _labelCaption.innerHtml;
   set label(String label) {
     _labelCaption.innerHtml = label;
-    _labelCaption.title = _labelCaption.text;
+    _label.title = _labelCaption.text;
   }
   CssStyleDeclaration get labelStyle => _labelCaption.style;
   ElementEvents get labelEvents => _labelCaption.on;
@@ -107,6 +107,11 @@ class Tab {
 
 class TabView {
   static const int SCROLL_MARGIN = 7;
+
+  //Constants controlling layout
+  static const int TAB_END_MARGIN = 15;
+  static const int TAB_MAX_WIDTH = 150;
+
   final Element parentElement;
   DivElement _tabViewContainer;
   DivElement _tabBar;
@@ -128,6 +133,7 @@ class TabView {
     List<Element> originalElements = parentElement.children.toList();
 
     _tabBar = new DivElement()..classes.add('tabview-tabbar');
+    window.onResize.listen((evt) => resize());
     _tabBarScroller = new DivElement()
         ..classes.add('tabview-tabbar-scroller');
     _tabBarScroller.onMouseWheel.listen((WheelEvent e) {
@@ -177,6 +183,7 @@ class TabView {
     if (switchesTab) {
       selectedTab = tab;
     }
+    resize();
     return tab;
   }
 
@@ -229,9 +236,21 @@ class TabView {
     }
 
     if (_selectedTab != null) _selectedTab.validatePage();
-
+    resize();
     _onCloseStreamController.add(tab);
     return true;
+  }
+
+  void resize() {
+    if (tabs.isEmpty) return;
+
+    var barWidth = _tabBar.clientWidth - 2 * TAB_END_MARGIN;
+    var tabsWidth = tabs.length * TAB_MAX_WIDTH;
+    var ratio = (tabsWidth - barWidth) / tabsWidth;
+    var newWidth = TAB_MAX_WIDTH - TAB_MAX_WIDTH;
+    for (var tab in tabs) {
+      tab._label.style.width = '${TAB_MAX_WIDTH - TAB_MAX_WIDTH * ratio}px';
+    }
   }
 
   void gotoPreviousTab() {

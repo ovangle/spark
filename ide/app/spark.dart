@@ -257,7 +257,7 @@ class Spark extends Application implements FilesControllerDelegate {
   void initSplitView() {
     _splitView = new SplitView(getUIElement('#splitview'));
     _splitView.onResized.listen((_) {
-      aceContainer.resize();
+      editorArea.resize();
       syncPrefs.setValue('splitViewPosition', _splitView.position.toString());
     });
     syncPrefs.getValue('splitViewPosition').then((String position) {
